@@ -3,8 +3,10 @@
 # Author: Tuncay ÇOLAK <tuncay.colak@tubitak.gov.tr>
 
 import os
+import urllib.request
 import string
 import random
+import re
 from api.config.config_manager import ConfigManager
 from api.logger.installer_logger import Logger
 from api.util.util import Util
@@ -24,7 +26,12 @@ class LiderInstaller(object):
         self.liderv2_web_url = "https://liderahenk.org/downloads/v2.0/ROOT.war"
         self.liderv3_web_url = "https://liderahenk.org/downloads/v3.0/ROOT.war"
 
-        self.tomcat_tar_file = "https://liderahenk.org/downloads/apache-tomcat-9.0.36.tar.gz"
+        self.tomcat_version = self.get_latest_tomcat_version()
+        if self.tomcat_version:
+            self.tomcat_tar_file = "https://dlcdn.apache.org/tomcat/tomcat-9/v{0}/bin/apache-tomcat-{0}.tar.gz".format(self.tomcat_version)
+        else:
+            # a fallback version if the latest version cannot be fetched
+            self.tomcat_tar_file = "https://liderahenk.org/downloads/apache-tomcat-9.0.36.tar.gz"
         self.dist_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../dist')
         self.liderv2_app_properties_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../dist/liderv2/src/main/resources/lider.properties')
 
@@ -172,3 +179,27 @@ class LiderInstaller(object):
         self.f_db_out.close()
         self.logger.info("application properties dosyası oluşturuldu")
 
+    def get_latest_tomcat_version(self):
+        """
+        Get the latest Tomcat 9 version number from the Apache download page.
+        """
+        try:
+            # Download the Apache Tomcat download page
+            with urllib.request.urlopen("https://dlcdn.apache.org/tomcat/tomcat-9/") as response:
+                html = response.read().decode('utf-8')
+
+            # Find all version links that match pattern v9.x.x/
+            version_pattern = r'href="v(9\.\d+\.\d+)/'
+            versions = re.findall(version_pattern, html)
+
+            if versions:
+                # Sort versions properly (9.0.78 < 9.0.79)
+                sorted_versions = sorted(versions, key=lambda v: [int(n) for n in v.split('.')])
+                # Return the latest version
+                return sorted_versions[-1]
+            else:
+                return None
+
+        except Exception as e:
+            print(f"Error fetching Tomcat version: {e}")
+            return None
