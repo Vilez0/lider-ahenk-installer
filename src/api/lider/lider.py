@@ -3,8 +3,10 @@
 # Author: Tuncay ÇOLAK <tuncay.colak@tubitak.gov.tr>
 
 import os
+import requests
 import string
 import random
+import re
 from api.config.config_manager import ConfigManager
 from api.logger.installer_logger import Logger
 from api.util.util import Util
@@ -24,7 +26,12 @@ class LiderInstaller(object):
         self.liderv2_web_url = "https://liderahenk.org/downloads/v2.0/ROOT.war"
         self.liderv3_web_url = "https://liderahenk.org/downloads/v3.0/ROOT.war"
 
-        self.tomcat_tar_file = "https://liderahenk.org/downloads/apache-tomcat-9.0.36.tar.gz"
+        self.tomcat_version = self.get_latest_tomcat_version()
+        if self.tomcat_version:
+            self.tomcat_tar_file = "https://dlcdn.apache.org/tomcat/tomcat-9/v{0}/bin/apache-tomcat-{0}.tar.gz".format(self.tomcat_version)
+        else:
+            # a fallback version if the latest version cannot be fetched
+            self.tomcat_tar_file = "https://liderahenk.org/downloads/apache-tomcat-9.0.36.tar.gz"       
         self.dist_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../dist')
         self.liderv2_app_properties_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../dist/liderv2/src/main/resources/lider.properties')
 
@@ -172,3 +179,23 @@ class LiderInstaller(object):
         self.f_db_out.close()
         self.logger.info("application properties dosyası oluşturuldu")
 
+    # Get the latest Tomcat 9 version number.
+    def get_latest_tomcat_version(self):
+        try:
+            response = requests.get("https://dlcdn.apache.org/tomcat/tomcat-9/")
+            html = response.text
+
+            # Find all version links that match pattern v9.x.x/
+            version_pattern = r'href="v(9\.\d+\.\d+)/'
+            versions = re.findall(version_pattern, html)
+
+            if versions:
+                sorted_versions = sorted(versions, key=lambda v: [int(n) for n in v.split('.')])
+                self.logger.info("Pulled latest Tomcat 9 version: {0}".format(sorted_versions[-1]))
+                return sorted_versions[-1]
+            else:
+                return None
+
+        except Exception as e:
+            self.logger.error("Error fetching Tomcat version: {0}".format(e))
+            return None
